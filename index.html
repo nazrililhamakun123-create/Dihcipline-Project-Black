@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stickman Marah 3D</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#141014">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DIHCIPLINE">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root{
+    --line:#f4e9d8;
+    --caption:#9a8f92;
+    --bg-1:#141014;
+    --bg-2:#1f171c;
+    --bar-bg-1:#2a2e63;
+    --bar-bg-2:#171a42;
+    --bar-border:#10123a;
+    --fill-blue-1:#a9c0ff;
+    --fill-blue-2:#5f7bec;
+    --fill-pink-1:#ffb3cf;
+    --fill-pink-2:#e75f92;
+  }
+  html,body{ height:100%; margin:0; overflow:hidden; }
+  body{
+    background: radial-gradient(circle at 50% 30%, var(--bg-2), var(--bg-1) 70%);
+    display:flex;
+    flex-direction:column;
+    font-family:'Courier New', monospace;
+    color:var(--caption);
+  }
+
+  .hud{
+    width:min(90vw, 420px);
+    margin:14px auto 0;
+    flex-shrink:0;
+  }
+  .bar-row{ position:relative; margin: 20px 0 8px; }
+  .badge{
+    position:absolute; top:-13px; left:4px;
+    background:var(--bar-border); color:#fff;
+    font-weight:800; font-size:0.72rem;
+    padding:3px 9px; border-radius:10px;
+    border:2px solid #383c85; z-index:2; letter-spacing:0.02em;
+  }
+  .bar-track{
+    height:28px; margin-left:10px; margin-right:50px;
+    border-radius:999px;
+    background: linear-gradient(180deg, var(--bar-bg-1), var(--bar-bg-2));
+    border:3px solid var(--bar-border);
+    overflow:hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+  }
+  .bar-fill{ height:100%; width:0%; border-radius:999px; transition: width 0.35s ease; }
+  .fill-swing{ background: linear-gradient(180deg, var(--fill-blue-1), var(--fill-blue-2)); }
+  .fill-level{ background: linear-gradient(180deg, var(--fill-pink-1), var(--fill-pink-2)); }
+  .icon-badge{
+    position:absolute; right:-2px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; align-items:center; z-index:2;
+  }
+  .icon-blob{
+    width:34px; height:34px; background:#fff;
+    border-radius: 60% 40% 55% 45% / 45% 55% 40% 60%;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.45);
+  }
+  .icon-blob svg{ width:18px; height:18px; }
+  .max-label{
+    margin-top:2px; font-size:0.6rem; font-weight:900; color:#fff;
+    -webkit-text-stroke:1px var(--bar-border); letter-spacing:0.03em;
+  }
+  .hud.max-glow .bar-track{ animation: glowPulse 0.55s ease-in-out 3; }
+  @keyframes glowPulse{
+    0%,100%{ box-shadow: inset 0 2px 4px rgba(0,0,0,0.4); }
+    50%{ box-shadow: 0 0 18px 4px rgba(255,255,255,0.55), inset 0 2px 4px rgba(0,0,0,0.4); }
+  }
+
+  .title{
+    text-align:center; color:var(--line);
+    font-size:2.1rem; font-weight:700; letter-spacing:0.08em;
+    margin:10px 0 4px; flex-shrink:0;
+  }
+  #stage{ flex:1; width:100%; min-height:0; touch-action:none; cursor:grab; }
+  #stage:active{ cursor:grabbing; }
+  .caption{
+    text-align:center; margin:4px 0 12px;
+    letter-spacing:0.04em; font-size:0.85rem; flex-shrink:0;
+  }
+
+  #splashLayer{ position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
+  .droplet-particle{ position:fixed; left:0; top:0; animation: splashFly 0.9s ease-out forwards; }
+  .droplet-particle span{
+    display:block; width:13px; height:13px;
+    background: linear-gradient(180deg, var(--fill-blue-1), var(--fill-blue-2));
+    border-radius: 50% 50% 50% 0; transform: rotate(45deg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  @keyframes splashFly{
+    0%   { transform: translate(0,0) scale(0.4); opacity:1; }
+    65%  { opacity:1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity:0; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="hud" id="hud">
+    <div class="bar-row">
+      <div class="badge" id="swingBadge">0/6</div>
+      <div class="bar-track"><div class="bar-fill fill-swing" id="swingFill"></div></div>
+      <div class="icon-badge">
+        <div class="icon-blob">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 5 11 5 16a7 7 0 0 0 14 0C19 11 12 2 12 2Z" fill="#4f7bec"/></svg>
+        </div>
+        <div class="max-label">MAX!</div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="badge" id="levelBadge">0/4</div>
+      <div class="bar-track"><div class="bar-fill fill-level" id="levelFill"></div></div>
+      <div class="icon-badge">
+        <div class="icon-blob">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7.5-4.6-10-9.2C0.4 8.4 2 4.5 6 4c2.2-0.3 4 1 6 3 2-2 3.8-3.3 6-3 4 0.5 5.6 4.4 4 7.8-2.5 4.6-10 9.2-10 9.2Z" fill="#e75f92"/></svg>
+        </div>
+        <div class="max-label">MAX!</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="title">DIHCIPLINE</div>
+  <div id="stage"></div>
+  <div class="caption">grrr... (seret untuk memutar)</div>
+  <div id="splashLayer"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const stage = document.getElementById('stage');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0, 1.55, 4.3);
+    camera.lookAt(0, 1.15, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    stage.appendChild(renderer.domElement);
+
+    function resize(){
+      const w = stage.clientWidth, h = stage.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', resize);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const key = new THREE.DirectionalLight(0xfff2df, 1.3);
+    key.position.set(2.5, 4, 3);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0xaebbff, 0.7);
+    rim.position.set(-3, 2, -2);
+    scene.add(rim);
+
+    const bodyColor = 0x161616;
+    const faceColor = 0xf4e9d8;
+    const mouthColor = 0xc94f3d;
+    const limbMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness:0.5, metalness:0.15 });
+
+    function limb(start, end, radius){
+      const s = new THREE.Vector3(...start);
+      const e = new THREE.Vector3(...end);
+      const dir = new THREE.Vector3().subVectors(e, s);
+      const len = dir.length();
+      const geo = new THREE.CylinderGeometry(radius, radius, len, 12);
+      const mesh = new THREE.Mesh(geo, limbMat);
+      mesh.position.copy(s).addScaledVector(dir, 0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+      return mesh;
+    }
+    function joint(pos, radius){
+      const geo = new THREE.SphereGeometry(radius, 12, 12);
+      const mesh = new THREE.Mesh(geo, limbMat);
+      mesh.position.set(...pos);
+      return mesh;
+    }
+
+    const man = new THREE.Group();
+    scene.add(man);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 20, 20), limbMat);
+    head.position.set(0, 2.02, 0);
+    man.add(head);
+
+    const eyeMat = new THREE.MeshStandardMaterial({ color: faceColor });
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.035,10,10), eyeMat);
+    eyeL.position.set(-0.09, 2.05, 0.21);
+    const eyeR = eyeL.clone();
+    eyeR.position.set(0.09, 2.05, 0.21);
+    man.add(eyeL, eyeR);
+
+    const browMat = new THREE.MeshStandardMaterial({ color: faceColor });
+    const browGeo = new THREE.CylinderGeometry(0.018,0.018,0.14,6);
+    const browL = new THREE.Mesh(browGeo, browMat);
+    browL.position.set(-0.1, 2.13, 0.2);
+    browL.rotation.z = 0.5;
+    const browR = new THREE.Mesh(browGeo, browMat);
+    browR.position.set(0.1, 2.13, 0.2);
+    browR.rotation.z = -0.5;
+    man.add(browL, browR);
+
+    // mulut marah (default)
+    const mouth = new THREE.Mesh(new THREE.SphereGeometry(0.06,12,12), new THREE.MeshStandardMaterial({color:mouthColor}));
+    mouth.scale.set(1,0.7,0.6);
+    mouth.position.set(0, 1.93, 0.22);
+    man.add(mouth);
+
+    // mulut senyum puas (muncul saat bar penuh)
+    const mouthHappy = new THREE.Mesh(
+      new THREE.TorusGeometry(0.075, 0.017, 8, 20, Math.PI),
+      new THREE.MeshStandardMaterial({ color: mouthColor })
+    );
+    mouthHappy.position.set(0, 1.965, 0.21);
+    mouthHappy.rotation.z = Math.PI;
+    mouthHappy.visible = false;
+    man.add(mouthHappy);
+
+    function setSatisfiedFace(isSatisfied){
+      mouth.visible = !isSatisfied;
+      mouthHappy.visible = isSatisfied;
+      const browAngle = isSatisfied ? 0.12 : 0.5;
+      browL.rotation.z = browAngle;
+      browR.rotation.z = -browAngle;
+      const eyeSquint = isSatisfied ? 0.35 : 1;
+      eyeL.scale.y = eyeSquint;
+      eyeR.scale.y = eyeSquint;
+    }
+
+    const hip = [0, 0.9, 0];
+    const shoulderCenter = [0, 1.72, 0];
+    man.add(limb(hip, shoulderCenter, 0.075));
+    man.add(joint(shoulderCenter, 0.075));
+    man.add(joint(hip, 0.08));
+
+    const kneeL = [-0.36, 0.46, 0.06];
+    const footL = [-0.44, 0, 0.16];
+    const kneeR = [0.38, 0.43, -0.05];
+    const footR = [0.47, 0, -0.13];
+    man.add(limb(hip, kneeL, 0.055), joint(kneeL,0.06), limb(kneeL, footL, 0.055));
+    man.add(limb(hip, kneeR, 0.055), joint(kneeR,0.06), limb(kneeR, footR, 0.055));
+
+    const shoulderL = [-0.28, 1.7, 0];
+    const shoulderR = [0.28, 1.7, 0];
+    man.add(limb(shoulderCenter, shoulderL, 0.055));
+    man.add(limb(shoulderCenter, shoulderR, 0.055));
+
+    const elbowR = [0.55, 1.58, 0.15];
+    const fistR  = [0.82, 1.98, 0.28];
+    man.add(joint(shoulderR,0.06), limb(shoulderR, elbowR, 0.05), joint(elbowR,0.055),
+            limb(elbowR, fistR, 0.05), joint(fistR, 0.075));
+
+    const leftArm = new THREE.Group();
+    leftArm.position.set(...shoulderL);
+    man.add(leftArm);
+
+    const lElbowLocal = [0.14, -0.52, 0.05];
+    const lFistLocal  = [0.26, -0.98, 0.09];
+    leftArm.add(joint([0,0,0], 0.06));
+    leftArm.add(limb([0,0,0], lElbowLocal, 0.05));
+    leftArm.add(joint(lElbowLocal, 0.055));
+    leftArm.add(limb(lElbowLocal, lFistLocal, 0.05));
+    leftArm.add(joint(lFistLocal, 0.075));
+
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.62, 24),
+      new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.35 })
+    );
+    shadow.rotation.x = -Math.PI/2;
+    shadow.position.y = 0.005;
+    man.add(shadow);
+
+    const upAngle = THREE.MathUtils.degToRad(-119.6);
+    const speed = 9.5;
+
+    let dragging = false, lastX = 0, autoRotate = true;
+    man.rotation.y = 0.25;
+
+    stage.addEventListener('pointerdown', (e) => {
+      dragging = true; autoRotate = false; lastX = e.clientX;
+      stage.setPointerCapture(e.pointerId);
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if(!dragging) return;
+      const dx = e.clientX - lastX;
+      lastX = e.clientX;
+      man.rotation.y += dx * 0.008;
+    });
+    function endDrag(){ dragging = false; }
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointercancel', endDrag);
+
+    // ---- HUD: bar ayunan + bar tingkat penyelesaian ----
+    const SWINGS_PER_FILL = 6;
+    const LEVELS_TO_MAX = 4;
+    let swingCount = 0;
+    let level = 0;
+    let paused = false;
+    let lastCycle = 0;
+
+    const swingBadge = document.getElementById('swingBadge');
+    const swingFill  = document.getElementById('swingFill');
+    const levelBadge = document.getElementById('levelBadge');
+    const levelFill  = document.getElementById('levelFill');
+    const hud = document.getElementById('hud');
+
+    function updateSwingBar(n){
+      swingBadge.textContent = n + '/' + SWINGS_PER_FILL;
+      swingFill.style.width = (n / SWINGS_PER_FILL * 100) + '%';
+    }
+    function updateLevelBar(n){
+      levelBadge.textContent = n + '/' + LEVELS_TO_MAX;
+      levelFill.style.width = (n / LEVELS_TO_MAX * 100) + '%';
+    }
+
+    function spawnDroplets(originEl){
+      const layer = document.getElementById('splashLayer');
+      const rect = originEl.getBoundingClientRect();
+      const originX = rect.left + rect.width / 2;
+      const originY = rect.top + rect.height / 2;
+      for(let i = 0; i < 22; i++){
+        const wrap = document.createElement('div');
+        wrap.className = 'droplet-particle';
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 50 + Math.random() * 150;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist - 60;
+        wrap.style.setProperty('--dx', dx + 'px');
+        wrap.style.setProperty('--dy', dy + 'px');
+        wrap.style.left = originX + 'px';
+        wrap.style.top = originY + 'px';
+        wrap.style.animationDelay = (Math.random() * 0.12) + 's';
+        const inner = document.createElement('span');
+        wrap.appendChild(inner);
+        layer.appendChild(wrap);
+        wrap.addEventListener('animationend', () => wrap.remove());
+      }
+    }
+
+    function triggerSplash(){
+      paused = true;
+      setSatisfiedFace(true);
+      hud.classList.add('max-glow');
+      spawnDroplets(document.querySelector('.bar-row:nth-child(2) .icon-blob'));
+      setTimeout(() => {
+        swingCount = 0; level = 0;
+        updateSwingBar(0); updateLevelBar(0);
+        hud.classList.remove('max-glow');
+        setSatisfiedFace(false);
+        paused = false;
+      }, 2200);
+    }
+
+    resize();
+    const clock = new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      leftArm.rotation.z = (upAngle/2) * (1 - Math.cos(t*speed));
+
+      const phase = t * speed;
+      const cycle = Math.floor(phase / (2*Math.PI));
+      if(cycle > lastCycle){
+        lastCycle = cycle;
+        if(!paused){
+          swingCount++;
+          const shown = swingCount % SWINGS_PER_FILL === 0 ? SWINGS_PER_FILL : swingCount % SWINGS_PER_FILL;
+          updateSwingBar(shown);
+          if(swingCount % SWINGS_PER_FILL === 0){
+            level++;
+            updateLevelBar(level);
+            setTimeout(() => { if(!paused) updateSwingBar(0); }, 250);
+            if(level >= LEVELS_TO_MAX){
+              triggerSplash();
+            }
+          }
+        }
+      }
+
+      if(!dragging && autoRotate){
+        man.rotation.y += 0.0035;
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
